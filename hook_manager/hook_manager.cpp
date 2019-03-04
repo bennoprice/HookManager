@@ -10,32 +10,42 @@ namespace hook
 	{
 		unhook();
 	}
-	void abstract_hook::unhook() const
+	void abstract_hook::unhook()
 	{ }
 
 	//
 	// vmt hook
 	//
+	vmt_hook::vfunc::vfunc(std::uint64_t* addr)
+		: _addr(addr)
+	{ }
+	void vmt_hook::vfunc::set_page_prot(bool enable)
+	{
+		if (enable && _prot)
+			::VirtualProtect(_addr, _size, _prot, nullptr);
+		else
+			::VirtualProtect(_addr, _size, PAGE_EXECUTE_READWRITE, &_prot);
+	}
+	auto& vmt_hook::vfunc::get_addr() const
+	{
+		return *_addr;
+	}
+
 	vmt_hook::vmt_hook(std::uint64_t target_class, std::uint64_t hook_addr, std::uint64_t vtable_index)
 	{
 		auto vtable = **reinterpret_cast<std::uint64_t***>(target_class);
-		_vtable_func_addr = &vtable[vtable_index];
-		_ofunc = *_vtable_func_addr;
+		_vfunc = std::make_unique<vfunc>(&vtable[vtable_index]);
+		_ofunc = _vfunc->get_addr();
 
-		set_page_protection(reinterpret_cast<std::uint64_t>(_vtable_func_addr), sizeof(std::uint64_t), false);
-		*_vtable_func_addr = hook_addr;
-		set_page_protection(reinterpret_cast<std::uint64_t>(_vtable_func_addr), sizeof(std::uint64_t), true);
+		_vfunc->set_page_prot(false);
+		_vfunc->get_addr() = hook_addr;
+		_vfunc->set_page_prot(true);
 	}
-	void vmt_hook::unhook() const
+	void vmt_hook::unhook()
 	{
-		*_vtable_func_addr = _ofunc;
-	}
-	void vmt_hook::set_page_protection(std::uint64_t address, std::size_t size, bool enable)
-	{
-		if (enable && _page_prot)
-			::VirtualProtect(reinterpret_cast<void*>(address), size, _page_prot, nullptr);
-		else
-			::VirtualProtect(reinterpret_cast<void*>(address), size, PAGE_EXECUTE_READWRITE, reinterpret_cast<DWORD*>(&_page_prot));
+		_vfunc->set_page_prot(false);
+		_vfunc->get_addr() = _ofunc;
+		_vfunc->set_page_prot(true);
 	}
 
 	//
