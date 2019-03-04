@@ -1,3 +1,3 @@
 # HookManager
 Features:
-- vmt hook.
+- vmt hooking.
