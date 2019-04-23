@@ -5,46 +5,74 @@
 
 namespace hook
 {
+	//
+	// abstract_hook
+	//
 	class abstract_hook
 	{
-	protected:
-		std::uint64_t _ofunc;
 	public:
-		~abstract_hook();
-		virtual void unhook() = 0;
+		~abstract_hook() noexcept;
+		void unhook();
 
 		template <typename T>
 		T get_ofunc()
 		{
 			return reinterpret_cast<T>(_ofunc);
 		}
-	};
-
-	class vmt_hook : public abstract_hook
-	{
-	private:
-		class vfunc
+	protected:
+		class func
 		{
-		private:
-			const std::size_t _size = sizeof(std::uint64_t);
-			std::uint64_t* _addr;
-			DWORD _prot;
 		public:
-			explicit vfunc(std::uint64_t* addr);
+			explicit func(std::uint64_t* addr);
+			void set_addr(std::uint64_t addr);
+			std::uint64_t get_addr() const;
+		private:
 			void set_page_prot(bool enable);
-			auto& get_addr() const;
+			std::uint64_t* _addr;
+			std::uint32_t _prot;
 		};
 
-		std::unique_ptr<vfunc> _vfunc;
-	public:
-		explicit vmt_hook(std::uint64_t target_class, std::uint64_t hook_addr, std::uint64_t vtable_index);
-		void unhook() override;
+		std::unique_ptr<func> _func;
+		std::uint64_t _ofunc;
 	};
 
+	//
+	// iat_func
+	// swaps a import address table function pointer
+	//
+	class iat_func : public abstract_hook
+	{
+	public:
+		explicit iat_func(std::string_view func_name, std::uint64_t hook_addr, HMODULE module = 0);
+	private:
+		std::uint64_t* find_func(std::string_view name, HMODULE module) const;
+	};
+
+	//
+	// vmt_func
+	// swaps a virtual method table function pointer
+	//
+	class vmt_func : public abstract_hook
+	{
+	public:
+		explicit vmt_func(std::uint64_t target_class, std::uint64_t hook_addr, std::uint64_t vtable_idx);
+	};
+
+	//
+	// vmt_swap
+	// swaps the entire virtual method table
+	//
+	class vmt_swap : public abstract_hook
+	{
+	public:
+		explicit vmt_swap();
+	};
+
+	//
+	// hook_manager
+	//
 	class hook_manager
 	{
-	private:
-		std::vector<std::shared_ptr<abstract_hook>> _hooks;
 	public:
 		template <typename hook_type_t, typename ...args_t>
 		auto register_hook(args_t&&... args)
@@ -54,5 +82,7 @@ namespace hook
 			return hook;
 		}
 		void unhook_all();
+	private:
+		std::vector<std::shared_ptr<abstract_hook>> _hooks;
 	};
 }
