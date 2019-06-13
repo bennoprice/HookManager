@@ -57,19 +57,21 @@ namespace hook
 	{
 		if (!module)
 			module = GetModuleHandle(0);
+		auto base = reinterpret_cast<std::uint64_t>(module);
 
-		auto dos_header = PIMAGE_DOS_HEADER(module);
-		auto nt_header = PIMAGE_NT_HEADERS(reinterpret_cast<std::uint8_t*>(module) + dos_header->e_lfanew);
-		auto import_desc_base = PIMAGE_IMPORT_DESCRIPTOR(reinterpret_cast<std::uint8_t*>(dos_header) + nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+		auto dos_header = PIMAGE_DOS_HEADER(base);
+		auto nt_header = PIMAGE_NT_HEADERS(base + dos_header->e_lfanew);
 
-		for (auto *import_desc = import_desc_base; import_desc->Name != 0; ++import_desc)
+		auto section = nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+		auto import_table = PIMAGE_IMPORT_DESCRIPTOR(base + section.VirtualAddress);
+		for (; import_table->Name; ++import_table)
 		{
-			for (auto func_idx = 0u; *(func_idx + reinterpret_cast<void**>(import_desc->FirstThunk + reinterpret_cast<std::uint64_t>(module))) != nullptr; ++func_idx)
+			auto entry = PIMAGE_THUNK_DATA64(base + import_table->OriginalFirstThunk);
+			for (auto idx = 0u; entry->u1.AddressOfData; idx += sizeof(std::uint64_t), ++entry)
 			{
-				char* func_name = reinterpret_cast<char*>(*(func_idx + reinterpret_cast<std::uint64_t*>(import_desc->OriginalFirstThunk + reinterpret_cast<std::uint64_t>(module))) + reinterpret_cast<std::uint64_t>(module) + 0x2);
-				if (reinterpret_cast<intptr_t>(func_name) >= 0)
-					if (!::strcmp(name.data(), func_name))
-						return func_idx + reinterpret_cast<std::uint64_t*>(import_desc->FirstThunk + reinterpret_cast<std::uint64_t>(module));
+				auto import_by_name = PIMAGE_IMPORT_BY_NAME(base + entry->u1.AddressOfData);
+				if (!::strcmp(name.data(), reinterpret_cast<const char*>(import_by_name->Name)))
+					return reinterpret_cast<std::uint64_t*>(base + import_table->FirstThunk + idx);
 			}
 		}
 		return nullptr;

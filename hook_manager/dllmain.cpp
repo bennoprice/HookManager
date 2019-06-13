@@ -30,11 +30,11 @@ namespace placed_hooks
 
 void init()
 {
-	auto module_base = reinterpret_cast<std::uint64_t>(GetModuleHandle(0));
+	//auto module_base = reinterpret_cast<std::uint64_t>(GetModuleHandle(0));
 	auto hook_manager = std::make_unique<hook::hook_manager>();
 
-	placed_hooks::iat_hook = hook_manager->register_hook<hook::iat_func>("TerminateProcess", reinterpret_cast<std::uint64_t>(&placed_hooks::h_func), GetModuleHandle(L"kernel32.dll"));
-	placed_hooks::vmt_hook = hook_manager->register_hook<hook::vmt_func>(0x4084effbc8, reinterpret_cast<std::uint64_t>(&placed_hooks::h_func), 0);
+	placed_hooks::iat_hook = hook_manager->register_hook<hook::iat_func>("TerminateProcess", reinterpret_cast<std::uint64_t>(&placed_hooks::h_terminate_proc), GetModuleHandle(L"kernel32.dll"));
+	//placed_hooks::vmt_hook = hook_manager->register_hook<hook::vmt_func>(0x4084effbc8, reinterpret_cast<std::uint64_t>(&placed_hooks::h_func), 0);
 
 	//hook::iat_hook->unhook();
 	//hook::vmt_hook->unhook();
